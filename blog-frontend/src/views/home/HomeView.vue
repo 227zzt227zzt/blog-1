@@ -47,15 +47,15 @@
    <!-- 修改后的AI聊天区域 -->
    <div class="ai-chat-section">
       <div class="chat-container">
-        <div class="chat-messages" ref="chatMessages">
+        <div class="chat-messages" ref="chatMessagesRef">
           <div v-for="(message, index) in chatMessages" :key="index" 
                :class="['message', message.type]">
-            {{ message.content }}
+            <div class="message-content">{{ message.content }}</div>
           </div>
           <div v-if="isLoading" class="message ai">
-            <span class="typing-indicator">
+            <div class="typing-indicator">
               <span></span><span></span><span></span>
-            </span>
+            </div>
           </div>
         </div>
         <div class="chat-input">
@@ -64,12 +64,16 @@
             placeholder="输入消息..."
             :disabled="isLoading"
             @keyup.enter="sendMessage"
+            type="textarea"
+            :rows="2"
+            resize="none"
           >
             <template #append>
               <el-button 
                 @click="sendMessage"
                 :disabled="isLoading || !userMessage.trim()"
                 :loading="isLoading"
+                type="primary"
               >
                 发送
               </el-button>
@@ -107,6 +111,7 @@
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/store/user";
 import { computed, ref, onMounted, onUnmounted,nextTick } from "vue";
+import { chatWithAI, handleStreamResponse } from '@/api/ai';
 
 const router = useRouter();
 const userStore = useUserStore();
@@ -170,7 +175,7 @@ const isLoading = ref(false);
 const chatMessagesRef = ref(null);
 const abortController = ref(null);
 
-// 发送消息函数 - 使用原生fetch处理流
+// 发送消息函数 - 使用API函数处理流
 const sendMessage = async () => {
   if (!userMessage.value.trim() || isLoading.value) return;
   
@@ -190,37 +195,12 @@ const sendMessage = async () => {
     // 创建AbortController以便取消请求
     abortController.value = new AbortController();
     
-    // 使用原生fetch处理流式响应
-    const response = await fetch(`/ai/chatStream?message=${encodeURIComponent(userMsg)}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'text/event-stream',
-        'Content-Type': 'application/json',
-      },
-      signal: abortController.value.signal
-    });
+    // 使用API函数发送请求
+    const response = await chatWithAI(userMsg, abortController.value.signal);
     
-    if (!response.ok || !response.body) {
-      throw new Error("AI服务响应异常");
-    }
-    
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    let aiMessage = "";
-    let shouldContinue = true;
-    
-    // 修改循环条件
-    while (shouldContinue) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        shouldContinue = false;
-        isLoading.value = false;
-        break;
-      }
-      
-      // 解码并处理数据
-      const chunk = decoder.decode(value, { stream: true });
+    // 处理流式响应
+    let aiMessage = '';
+    for await (const chunk of handleStreamResponse(response)) {
       aiMessage += chunk;
       
       // 更新AI消息内容
@@ -243,8 +223,8 @@ const sendMessage = async () => {
         };
       }
     }
-    isLoading.value = false;
   } finally {
+    isLoading.value = false;
     abortController.value = null;
   }
 };
@@ -253,10 +233,10 @@ const sendMessage = async () => {
 const scrollToBottom = async () => {
   await nextTick();
   if (chatMessagesRef.value) {
-    chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight;
+    const container = chatMessagesRef.value;
+    container.scrollTop = container.scrollHeight;
   }
 };
-
 
 // 组件卸载时取消请求
 onUnmounted(() => {
@@ -507,74 +487,14 @@ onUnmounted(() => {
 .chat-messages {
   height: 400px;
   overflow-y: auto;
-  padding: 20px;
-  background: #f5f7fa;
-  border-radius: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.message {
-  padding: 10px 16px;
-  border-radius: 8px;
-  max-width: 80%;
-  word-wrap: break-word;
-}
-
-.message.user {
-  background: #6e8efb;
-  color: white;
-  align-self: flex-end;
-}
-
-.message.ai {
-  background: white;
-  color: #333;
-  align-self: flex-start;
-  border: 1px solid #e4e7ed;
-}
-
-.message.error {
-  background: #fef0f0;
-  color: #f56c6c;
-  align-self: center;
-  width: 100%;
-  text-align: center;
-}
-
-.chat-input {
-  width: 100%;
-}
-.ai-chat-section {
-  padding: 40px 20px;
-  display: flex;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.95); /* 更透明的背景 */
-  margin: 40px auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15); /* 增强阴影 */
-  max-width: 800px;
-  width: 90%;
-}
-
-.chat-container {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.chat-messages {
-  height: 400px;
-  overflow-y: auto;
   padding: 16px;
-  background: #f8fafc; /* 更柔和的背景色 */
+  background: #f8fafc;
   border-radius: 10px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border: 1px solid #e2e8f0; /* 添加边框 */
+  border: 1px solid #e2e8f0;
+  scroll-behavior: smooth;
 }
 
 .message {
@@ -586,9 +506,9 @@ onUnmounted(() => {
   animation: fadeIn 0.3s ease;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+.message-content {
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .message.user {
@@ -621,11 +541,33 @@ onUnmounted(() => {
   padding-top: 10px;
 }
 
+.chat-input :deep(.el-textarea__inner) {
+  border-radius: 8px;
+  resize: none;
+  padding: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 60px;
+}
+
+.chat-input :deep(.el-input-group__append) {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.chat-input :deep(.el-button) {
+  height: 60px;
+  border-radius: 0 8px 8px 0;
+  padding: 0 20px;
+}
+
 /* 打字动画 */
 .typing-indicator {
   display: inline-flex;
   align-items: center;
   gap: 4px;
+  padding: 8px 0;
 }
 
 .typing-indicator span {
