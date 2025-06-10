@@ -1,6 +1,11 @@
 <template>
   <router-view />
+  <AiAssistant />
 </template>
+
+<script setup>
+import AiAssistant from '@/components/AiAssistant.vue'
+</script>
 
 <style>
 * {
@@ -18,5 +23,9 @@ body {
 
 #app {
   min-height: 100vh;
+  font-family: Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: #2c3e50;
 }
 </style>

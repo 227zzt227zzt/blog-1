@@ -1,72 +1,26 @@
-import request from '@/utils/request'
-
-/**
- * 发送消息到AI聊天并获取流式响应
- * @param {string} message - 发送给AI的消息
- * @param {AbortSignal} signal - 可选的AbortSignal用于取消请求
- * @returns {Promise<Response>} - 返回fetch响应
- */
-export function chatWithAI(message, signal = null) {
-  return request({
-    url: '/ai/chatStream',
-    method: 'GET',
-    params: { message },
-    headers: {
-      'Accept': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
-    },
-    responseType: 'stream',
-    signal
-  });
-}
-
-/**
- * 使用ChatModel直接发送消息
- * @param {string} message - 发送给AI的消息
- * @param {AbortSignal} signal - 可选的AbortSignal用于取消请求
- * @returns {Promise<Response>} - 返回fetch响应
- */
-export function chatWithModel(message, signal = null) {
-  return request({
-    url: '/ai/chat2',
-    method: 'GET',
-    params: { message },
-    headers: {
-      'Accept': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
-    },
-    responseType: 'stream',
-    signal
-  });
-}
-
-/**
- * 处理流式响应
- * @param {Response} response - fetch响应对象
- * @returns {AsyncGenerator<string>} - 生成器函数，用于处理流式响应
- */
-export async function* handleStreamResponse(response) {
-  if (!response.ok || !response.body) {
-    throw new Error('AI服务响应异常');
-  }
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder('utf-8');
-
+import  request  from '@/utils/request.js'
+export const getAiResponse = async (message) => {
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        break;
+    console.log('message:', message)
+    const response = await request.get('/ai/chat', { params: { message } })
+    if (response.data && response.code === 200) {
+      return {
+        success: true,
+        code: 200,
+        data: response.data,
+        message: 'AI响应成功'
       }
-      
-      const chunk = decoder.decode(value, { stream: true });
-      yield chunk;
+    } else {
+      return {
+        success: false,
+        message: response.data?.message || 'AI响应失败'
+      }
     }
-  } finally {
-    reader.releaseLock();
+  } catch (error) {
+    console.error('获取AI响应失败:', error)
+    return {
+      success: false,
+      message: error.response?.data?.message || 'AI响应失败'
+    }
   }
 }

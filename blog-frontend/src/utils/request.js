@@ -10,7 +10,7 @@ import { API_BASE_URL } from '@/utils/config';
 
 const service = axios.create({
     baseURL: API_BASE_URL, 
-    timeout: 5000,
+    timeout: 120000,
     withCredentials: true // 允许跨域请求携带凭证
 });
 

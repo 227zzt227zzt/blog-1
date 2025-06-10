@@ -42,6 +42,13 @@
 	</dependencyManagement>
 
 	<dependencies>
+<!--		elasticsearch.的依赖-->
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-elasticsearch</artifactId>
+			<version>3.3.8</version>
+		</dependency>
+
 <!--		下面添加ai的依赖？-->
 		<dependency>
 			<groupId>org.springframework.ai</groupId>

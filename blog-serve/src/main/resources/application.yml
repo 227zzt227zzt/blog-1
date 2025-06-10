@@ -1,4 +1,9 @@
 spring:
+  elasticsearch:
+    uris: http://localhost:9200
+    connection-timeout: 5000
+    socket-timeout: 10000
+
   datasource:
     url: jdbc:mysql://localhost:3306/blog?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root

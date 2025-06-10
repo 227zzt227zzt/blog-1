@@ -44,45 +44,6 @@
       </div>
     </div>
 
-   <!-- 修改后的AI聊天区域 -->
-   <div class="ai-chat-section">
-      <div class="chat-container">
-        <div class="chat-messages" ref="chatMessagesRef">
-          <div v-for="(message, index) in chatMessages" :key="index" 
-               :class="['message', message.type]">
-            <div class="message-content">{{ message.content }}</div>
-          </div>
-          <div v-if="isLoading" class="message ai">
-            <div class="typing-indicator">
-              <span></span><span></span><span></span>
-            </div>
-          </div>
-        </div>
-        <div class="chat-input">
-          <el-input
-            v-model="userMessage"
-            placeholder="输入消息..."
-            :disabled="isLoading"
-            @keyup.enter="sendMessage"
-            type="textarea"
-            :rows="2"
-            resize="none"
-          >
-            <template #append>
-              <el-button 
-                @click="sendMessage"
-                :disabled="isLoading || !userMessage.trim()"
-                :loading="isLoading"
-                type="primary"
-              >
-                发送
-              </el-button>
-            </template>
-          </el-input>
-        </div>
-      </div>
-    </div>
-
     <div class="footer">
       <div class="footer-content">
         <div class="footer-section">
@@ -110,9 +71,8 @@
 <script setup>
 import { useRouter } from "vue-router";
 import { useUserStore } from "@/store/user";
-import { computed, ref, onMounted, onUnmounted,nextTick } from "vue";
-import { chatWithAI, handleStreamResponse } from '@/api/ai';
-
+import { computed, ref, onMounted, onUnmounted } from "vue";
+import { ChatDotRound, Pointer, Link  } from '@element-plus/icons-vue';
 const router = useRouter();
 const userStore = useUserStore();
 
@@ -155,6 +115,7 @@ function goToAbout() {
 }
 
 const navbarSolid = ref(false);
+const currentText = ref("");
 
 function handleScroll() {
   navbarSolid.value = window.scrollY > 30;
@@ -168,82 +129,154 @@ onUnmounted(() => {
   window.removeEventListener("scroll", handleScroll);
 });
 
-// AI聊天相关状态
-const userMessage = ref("");
-const chatMessages = ref([]);
-const isLoading = ref(false);
-const chatMessagesRef = ref(null);
-const abortController = ref(null);
+// // AI对话相关状态
+// const aiDialogVisible = ref(false)
+// const userInput = ref('')
+// const aiMessages = ref([])
+// const isAiLoading = ref(false)
+// const messagesContainer = ref(null)
 
-// 发送消息函数 - 使用API函数处理流
-const sendMessage = async () => {
-  if (!userMessage.value.trim() || isLoading.value) return;
+// 拖拽相关状态
+const isDragging = ref(false)
+const buttonPosition = ref({ x: window.innerWidth - 100, y: window.innerHeight - 100 })
+const dragOffset = ref({ x: 0, y: 0 })
+
+// // 处理拖拽开始
+// const handleDragStart = (e) => {
+//   isDragging.value = true
+//   const rect = e.target.getBoundingClientRect()
+//   dragOffset.value = {
+//     x: e.clientX - rect.left,
+//     y: e.clientY - rect.top
+//   }
+// }
+
+// 处理拖拽中
+const handleDrag = (e) => {
+  if (!isDragging.value) return
   
-  // 添加用户消息
-  const userMsg = userMessage.value.trim();
-  chatMessages.value.push({ type: 'user', content: userMsg });
-  userMessage.value = "";
+  const x = e.clientX - dragOffset.value.x
+  const y = e.clientY - dragOffset.value.y
   
-  // 设置加载状态
-  isLoading.value = true;
+  // 限制在窗口范围内
+  const maxX = window.innerWidth - 60 // 按钮宽度
+  const maxY = window.innerHeight - 60 // 按钮高度
   
-  // 添加AI消息占位符
-  chatMessages.value.push({ type: 'ai', content: '' });
-  await scrollToBottom();
-  
-  try {
-    // 创建AbortController以便取消请求
-    abortController.value = new AbortController();
-    
-    // 使用API函数发送请求
-    const response = await chatWithAI(userMsg, abortController.value.signal);
-    
-    // 处理流式响应
-    let aiMessage = '';
-    for await (const chunk of handleStreamResponse(response)) {
-      aiMessage += chunk;
-      
-      // 更新AI消息内容
-      const lastIndex = chatMessages.value.length - 1;
-      chatMessages.value[lastIndex].content = aiMessage;
-      
-      // 滚动到底部
-      await scrollToBottom();
-    }
-  } catch (error) {
-    if (error.name !== 'AbortError') {
-      console.error('AI请求错误:', error);
-      
-      // 更新最后一条消息为错误信息
-      const lastIndex = chatMessages.value.length - 1;
-      if (lastIndex >= 0) {
-        chatMessages.value[lastIndex] = {
-          type: 'error',
-          content: 'AI服务暂时不可用，请稍后再试'
-        };
-      }
-    }
-  } finally {
-    isLoading.value = false;
-    abortController.value = null;
+  buttonPosition.value = {
+    x: Math.max(0, Math.min(x, maxX)),
+    y: Math.max(0, Math.min(y, maxY))
   }
-};
+}
+
+// 处理拖拽结束
+const handleDragEnd = () => {
+  isDragging.value = false
+}
+
+// 在组件挂载时添加全局事件监听
+onMounted(() => {
+  window.addEventListener('mousemove', handleDrag)
+  window.addEventListener('mouseup', handleDragEnd)
+})
+
+// 在组件卸载时移除事件监听
+onUnmounted(() => {
+  window.removeEventListener('mousemove', handleDrag)
+  window.removeEventListener('mouseup', handleDragEnd)
+})
+
+// // 打开/关闭AI对话框
+// const toggleAiDialog = () => {
+//   aiDialogVisible.value = !aiDialogVisible.value
+//   // 如果打开对话框且没有历史消息，添加欢迎语
+//   if (aiDialogVisible.value && aiMessages.value.length === 0) {
+//     addAiMessage({
+//       role: 'ai',
+//       content: '你好！我是AI助手，有什么问题都可以问我。',
+//       timestamp: new Date()
+//     })
+//   }
+// }
+
+// // 添加消息到对话
+// const addAiMessage = (message) => {
+//   aiMessages.value.push(message)
+//   scrollToBottom()
+// }
 
 // 滚动到底部
-const scrollToBottom = async () => {
-  await nextTick();
-  if (chatMessagesRef.value) {
-    const container = chatMessagesRef.value;
-    container.scrollTop = container.scrollHeight;
-  }
-};
+// const scrollToBottom = () => {
+//   nextTick(() => {
+//     if (messagesContainer.value) {
+//       messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
+//     }
+//   })
+// }
 
-// 组件卸载时取消请求
-onUnmounted(() => {
-  if (abortController.value) {
-    abortController.value.abort();
-  }
-});
+// // 发送消息给AI
+// const sendToAi = async () => {
+//   if (!userInput.value.trim() || isAiLoading.value) return
+  
+//   const userMessage = {
+//     role: 'user',
+//     content: userInput.value.trim(),
+//     timestamp: new Date()
+//   }
+  
+  // addAiMessage(userMessage)
+  // console.log('用户消息:', userMessage.content)
+  // // 保存用户输入并清空输入框
+  // const message = userInput.value
+  // console.log('发送给AI的消息:', message)
+  // userInput.value = ''
+  // isAiLoading.value = true
+  
+  // try {
+  //   const response = await getAiResponse(message)
+    
+  //   if (response.success) {
+  //     addAiMessage({
+  //       role: 'ai',
+  //       content: response.data || response.message,
+  //       timestamp: new Date()
+  //     })
+  //   } else {
+  //     addAiMessage({
+  //       role: 'ai',
+  //       content: '抱歉，我暂时无法回答这个问题。请稍后再试。',
+  //       timestamp: new Date()
+  //     })
+  //   }
+  // } catch (error) {
+  //   console.error('AI请求失败:', error)
+  //   addAiMessage({
+  //     role: 'ai',
+  //     content: '服务连接异常，请检查网络后重试。',
+  //     timestamp: new Date()
+  //   })
+  // } finally {
+  //   isAiLoading.value = false
+  // }
+
+
+// // 格式化时间
+// const formatTime = (date) => {
+//   return new Date(date).toLocaleTimeString([], { 
+//     hour: '2-digit', 
+//     minute: '2-digit' 
+//   })
+// }
+
+// // 监听对话框打开状态，自动聚焦输入框
+// watch(aiDialogVisible, (val) => {
+//   if (val) {
+//     nextTick(() => {
+//       const input = document.querySelector('.input-area .el-input__inner')
+//       if (input) input.focus()
+//     })
+//   }
+// })
+
 </script>
 
 <style scoped>
@@ -257,6 +290,7 @@ onUnmounted(() => {
   flex-direction: column;
   background: url("http://localhost:8082/upload/backgroud/backgroud.jpg") center center/cover no-repeat;
   position: relative;
+  padding-bottom: 300px; /* Add padding to prevent content from being hidden behind footer */
 }
 
 .home-container::before {
@@ -359,18 +393,19 @@ onUnmounted(() => {
   background: #f9fafc;
   border-radius: 0;
   padding: 40px 20px;
-  margin-top: 60px;
-  max-width: none;
   width: 100%;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
 }
 
 .footer-content {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 40px;
-  max-width: none !important;
-  width: 100%;
-  margin: 0;
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 0 0 40px 0;
   box-sizing: border-box;
 }
@@ -455,155 +490,163 @@ onUnmounted(() => {
   vertical-align: middle;
 }
 
-@keyframes blink-cursor {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0;
-  }
-}
-
-.ai-chat-section {
-  padding: 40px 20px;
+/* AI助手悬浮按钮 */
+.ai-assistant-button {
+  position: fixed;
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #6e8efb, #a777e3);
+  border-radius: 50%;
   display: flex;
+  align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.9);
-  margin: 40px auto;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  max-width: 800px;
-  width: 90%;
+  cursor: grab;
+  box-shadow: 0 4px 12px rgba(110, 142, 251, 0.3);
+  z-index: 1000;
+  transition: box-shadow 0.3s ease;
+  user-select: none;
 }
 
+.ai-assistant-button:hover {
+  box-shadow: 0 6px 16px rgba(110, 142, 251, 0.4);
+}
+
+.ai-assistant-button:active {
+  cursor: grabbing;
+}
+
+/* 聊天容器 */
 .chat-container {
-  width: 100%;
+  display: flex;
+  flex-direction: column;
+  height: 60vh;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px;
+  background-color: #f9fafc;
+  border-radius: 8px 8px 0 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
 }
 
-.chat-messages {
-  height: 400px;
-  overflow-y: auto;
-  padding: 16px;
-  background: #f8fafc;
-  border-radius: 10px;
+.message {
   display: flex;
-  flex-direction: column;
-  gap: 14px;
-  border: 1px solid #e2e8f0;
-  scroll-behavior: smooth;
+  gap: 12px;
 }
 
-.message {
-  padding: 12px 16px;
-  border-radius: 12px;
-  max-width: 85%;
-  word-wrap: break-word;
-  line-height: 1.5;
-  animation: fadeIn 0.3s ease;
+.message.ai {
+  align-items: flex-start;
+}
+
+.message.user {
+  flex-direction: row-reverse;
+  align-items: flex-start;
 }
 
 .message-content {
+  max-width: 80%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  position: relative;
+}
+
+.message.ai .message-content {
+  background-color: #fff;
+  border: 1px solid #e4e7ed;
+  border-radius: 18px 18px 18px 4px;
+}
+
+.message.user .message-content {
+  background: linear-gradient(135deg, #6e8efb, #a777e3);
+  color: white;
+  border-radius: 18px 18px 4px 18px;
+}
+
+.message-text {
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
-.message.user {
-  background: linear-gradient(135deg, #6e8efb, #a777e3);
-  color: white;
-  align-self: flex-end;
-  border-bottom-right-radius: 4px;
+.message-time {
+  font-size: 12px;
+  color: #999;
+  margin-top: 4px;
+  text-align: right;
 }
 
-.message.ai {
-  background: white;
-  color: #2d3748;
-  align-self: flex-start;
-  border: 1px solid #e4e7ed;
-  border-bottom-left-radius: 4px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+.input-area {
+  padding: 15px 0 0;
 }
 
-.message.error {
-  background: #fff5f5;
-  color: #e53e3e;
-  align-self: center;
-  width: 90%;
-  text-align: center;
-  border: 1px solid #fed7d7;
+.tips {
+  font-size: 12px;
+  color: #999;
+  text-align: right;
+  margin-top: 5px;
 }
 
-.chat-input {
-  width: 100%;
-  padding-top: 10px;
-}
-
-.chat-input :deep(.el-textarea__inner) {
-  border-radius: 8px;
-  resize: none;
-  padding: 12px;
-  font-size: 14px;
-  line-height: 1.5;
-  min-height: 60px;
-}
-
-.chat-input :deep(.el-input-group__append) {
-  padding: 0;
-  background: transparent;
-  border: none;
-}
-
-.chat-input :deep(.el-button) {
-  height: 60px;
-  border-radius: 0 8px 8px 0;
-  padding: 0 20px;
-}
-
-/* 打字动画 */
+/* 打字指示器 */
 .typing-indicator {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 8px 0;
+  margin-right: 8px;
 }
 
 .typing-indicator span {
   width: 8px;
   height: 8px;
-  background: #718096;
+  background-color: #6e8efb;
   border-radius: 50%;
   display: inline-block;
+  margin-right: 4px;
   animation: bounce 1.3s infinite ease;
 }
 
-.typing-indicator span:nth-child(1) { animation-delay: 0s; }
-.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+.typing-indicator span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-indicator span:nth-child(3) {
+  animation-delay: 0.4s;
+}
 
 @keyframes bounce {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
 }
 
-/* 滚动条样式 */
-.chat-messages::-webkit-scrollbar {
-  width: 6px;
+.loading-text {
+  margin-left: 10px;
+  color: #666;
+  font-size: 14px;
+}
+</style>
+
+<style>
+/* 覆盖Element UI样式 */
+.ai-dialog .el-dialog__header {
+  background: linear-gradient(135deg, #6e8efb, #a777e3);
+  margin: 0;
+  padding: 15px 20px;
 }
 
-.chat-messages::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 4px;
+.ai-dialog .el-dialog__title {
+  color: white;
+  font-weight: 600;
 }
 
-.chat-messages::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+.ai-dialog .el-dialog__headerbtn {
+  top: 15px;
 }
 
-.chat-messages::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+.ai-dialog .el-dialog__headerbtn .el-icon {
+  color: white;
 }
 </style>

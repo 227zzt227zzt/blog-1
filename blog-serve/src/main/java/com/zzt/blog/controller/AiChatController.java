@@ -1,50 +1,37 @@
 package com.zzt.blog.controller;
 
-import com.zzt.blog.service.AiService;
 import com.zzt.blog.util.Result;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
-import reactor.core.publisher.Flux;
-import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 /**
- * AI Chat Controller for handling AI chat interactions
  * @author 227
  */
 @RestController
 @RequestMapping("/ai")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
 public class AiChatController {
-    
-    @Autowired
-    private AiService aiChatService;
-    
-    @Autowired
-    private ChatModel chatModel;
 
-    /**
-     * Stream chat response from AI service
-     * @param message User's message
-     * @return Flux of String containing AI's response
-     */
-    @GetMapping(value = "/chatStream", produces = "text/html;charset=UTF-8")
-    public Flux<String> chatStream(@RequestParam(value = "message",defaultValue = "你好，你是谁，你要干什么") String message){
-        return aiChatService.getAiAnswer(message);
-    }
+    @Autowired
+    private ChatModel  chatModel;
 
-    /**
-     * Alternative chat endpoint using ChatModel directly
-     * @param message User's message
-     * @return Flux of String containing AI's response
-     */
-    @GetMapping(value = "/chat2", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> chat2(@RequestParam("message") String message) {
-        try {
-            return chatModel.stream(message);
-        } catch (Exception e) {
-            return Flux.error(e);
-        }
+    @GetMapping("/chat")
+    public Result<String> chat(@RequestParam("message") String message) {
+        ChatResponse chatResponse = chatModel.call(
+                new Prompt(
+                        "你是一个雌小鬼，知道互联网上一些低俗的笑话。" + message,
+                        OpenAiChatOptions.builder()
+                                .model("deepseek-chat")
+                                .temperature(0.01)
+                                .build()
+                )
+        );
+        return Result.success("获取成功",chatResponse.getResult().getOutput().getContent());
     }
 }
